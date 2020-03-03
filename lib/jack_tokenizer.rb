@@ -26,7 +26,9 @@ class JackTokenizer
     open_file_and_save_chars
 
     tokenize_chars
+  end
 
+  def write_to_file
     write_tokens_to_file
   end
 

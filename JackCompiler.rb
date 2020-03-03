@@ -1,7 +1,8 @@
 require_relative "./lib/jack_tokenizer.rb"
 require_relative "./lib/compilation_engine.rb"
+require_relative "./lib/code_generator.rb"
 
-class JackAnalyzer
+class JackCompiler
   def initialize(file_or_directory)
     @file_or_directory = file_or_directory
   end
@@ -24,9 +25,12 @@ class JackAnalyzer
 
     compilation_engine = CompilationEngine.new(tokenizer)
     compilation_engine.run
+
+    code_generator = CodeGenerator.new(compilation_engine)
+    code_generator.run
   end
 end
 
 file_or_directory = ARGV[0]
 
-JackAnalyzer.new(file_or_directory).run
+JackCompiler.new(file_or_directory).run
