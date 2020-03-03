@@ -4,10 +4,16 @@ class VMWriter
   end
 
   def write_push(segment, index)
+    if segment == "field"
+      segment = "this"
+    end
     f.puts("push #{segment} #{index}")
   end
 
   def write_pop(segment, index)
+    if segment == "field"
+      segment = "this"
+    end
     f.puts("pop #{segment} #{index}")
   end
 

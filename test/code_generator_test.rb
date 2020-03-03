@@ -7,22 +7,22 @@ require_relative "../lib/code_generator.rb"
 class CodeGeneratorTest < Minitest::Test
 
   [
-    # "Seven/Main.jack",
-    #
+    "Seven/Main.jack",
+
     "ConvertToBin/Main.jack",
-    #
-    # "Square/Main.jack",
-    # "Square/Square.jack",
-    # "Square/SquareGame.jack",
-    #
-    # "Average/Main.jack",
-    #
-    # "Pong/Main.jack",
-    # "Pong/Bat.jack",
-    # "Pong/Ball.jack",
-    # "Pong/PongGame.jack",
-    #
-    # "ComplexArrays/Main.jack",
+
+    "Square/Main.jack",
+    "Square/Square.jack",
+    "Square/SquareGame.jack",
+
+    "Average/Main.jack",
+
+    "Pong/Main.jack",
+    "Pong/Bat.jack",
+    "Pong/Ball.jack",
+    "Pong/PongGame.jack",
+
+    "ComplexArrays/Main.jack",
   ].each do |source|
     define_method "test_#{source.tr("/.", "_")}" do
       tokenizer = JackTokenizer.new("./test/fixtures/#{source}")

@@ -31,11 +31,10 @@ class CodeGenerator
     subroutine_decs.each do |subroutine_dec|
       # create symbol table
       symbol_table.start_subroutine
-      define_subroutine_symbol_table_for_arguments(subroutine_dec)
       subroutine_type = subroutine_dec[0][:body]
+      define_subroutine_symbol_table_for_arguments(subroutine_type, subroutine_dec)
       body = subroutine_dec.find { |child| child[:type] == "subroutineBody" }[:body]
-      define_subroutine_symbol_table_for_locals(subroutine_type, body)
-
+      define_subroutine_symbol_table_for_locals(body)
       # write function
       compile_subroutine(subroutine_dec)
     end
@@ -49,9 +48,14 @@ class CodeGenerator
     vm_writer.write_function("#{klass_name}.#{subroutine_name}", n_locals)
 
     if subroutine_type == "constructor"
-      block_count = symbol_table.var_count(field)
+      block_count = symbol_table.var_count("field")
       vm_writer.write_push('constant', block_count)
       vm_writer.write_call('Memory.alloc', 1)
+      vm_writer.write_pop('pointer', 0)
+    end
+
+    if subroutine_type == "method"
+      vm_writer.write_push('argument', 0)
       vm_writer.write_pop('pointer', 0)
     end
 
@@ -85,12 +89,24 @@ class CodeGenerator
 
   def compile_let(statement)
     name = statement[:body][1][:body]
-    # compile expression
-    compile_expression(statement[:body][3])
-    # pop expression to variable
     kind = symbol_table.kind_of(name)
     index = symbol_table.index_of(name)
-    vm_writer.write_pop(kind, index)
+
+    if statement[:body][2][:body] == "[" && statement[:body][4][:body] == "]"
+      # let for array
+      vm_writer.write_push(kind, index)
+      compile_expression(statement[:body][3])
+      vm_writer.write_arithmetic('add')
+      compile_expression(statement[:body][6])
+      vm_writer.write_pop("temp", 0)
+      vm_writer.write_pop("pointer", 1)
+      vm_writer.write_push("temp", 0)
+      vm_writer.write_pop("that", 0)
+    else
+      # let for normal var
+      compile_expression(statement[:body][3])
+      vm_writer.write_pop(kind, index)
+    end
   end
 
   def compile_if(statement)
@@ -191,11 +207,25 @@ class CodeGenerator
 
     if term[:body].length > 3
       compile_subroutine_call(term[:body])
+      compile_array_access(term[:body])
+    end
+  end
+
+  def compile_array_access(tokens)
+    if tokens.length == 4 && tokens[1][:body] == "[" && tokens[3][:body] == "]"
+      var_name = tokens[0][:body]
+      kind = symbol_table.kind_of(var_name)
+      index = symbol_table.index_of(var_name)
+      vm_writer.write_push(kind, index)
+      compile_expression(tokens[2])
+      vm_writer.write_arithmetic('add')
+      vm_writer.write_pop('pointer', 1)
+      vm_writer.write_push('that', 0)
     end
   end
 
   def compile_subroutine_call(tokens)
-    if tokens.length == 4
+    if tokens.length == 4 && tokens[1][:body] == "(" && tokens[3][:body] == ")"
       method = tokens[0][:body]
       expression_list = tokens[2][:body]
       n_args = expression_list.select { |child| child[:type] == "expression" }.count + 1
@@ -205,7 +235,7 @@ class CodeGenerator
     end
 
     # subroutine call
-    if tokens.length == 6
+    if tokens.length == 6 && tokens[3][:body] == "(" && tokens[5][:body] == ")"
       name = tokens[0][:body]
       method = tokens[2][:body]
       expression_list = tokens[4][:body]
@@ -236,8 +266,8 @@ class CodeGenerator
   def compile_keyword_constant(keyword)
     case keyword
     when 'true'
-      vm_writer.write_push('constant', 1)
-      vm_writer.write_arithmetic('neg')
+      vm_writer.write_push('constant', 0)
+      vm_writer.write_arithmetic('not')
     when 'false'
       vm_writer.write_push('constant', 0)
     when 'null'
@@ -288,23 +318,23 @@ class CodeGenerator
     end
   end
 
-  def define_subroutine_symbol_table_for_arguments(subroutine_dec)
-    param_list = subroutine_dec.find { |child| child[:type] == "parameterList" }[:body]
-    param_list.each_with_index do |token, i|
-      next if token[:type] != "keyword"
-      kind = "argument"
-      type = param_list[i][:body]
-      name = param_list[i+1][:body]
-
-      symbol_table.define(name, type, kind)
-    end
-  end
-
-  def define_subroutine_symbol_table_for_locals(subroutine_type, body)
+  def define_subroutine_symbol_table_for_arguments(subroutine_type, subroutine_dec)
     if subroutine_type == "method"
       symbol_table.define("this", klass_name, "argument")
     end
 
+    param_list = subroutine_dec.find { |child| child[:type] == "parameterList" }[:body]
+    param_list.reject { |p| p[:body] == ',' }.each_slice(2) do |type, name|
+      kind = "argument"
+
+      symbol_table.define(name[:body], type[:body], kind)
+    end
+    param_list.each_with_index do |token, i|
+      next if token[:type] != "keyword"
+    end
+  end
+
+  def define_subroutine_symbol_table_for_locals(body)
     var_decs = body
       .select { |child| child[:type] == "varDec" }
       .map { |child| child[:body] }
